@@ -146,3 +146,31 @@ GC.gc() # closes mmapped files
     0.0, 0.0, -1.0) == (:left, :anterior, :superior)
 
 
+@testset "Extension Read Write" begin
+    img = niread(GZIPPED_NII)
+    temp_bin = "$(tempname()).bin"
+    NIfTI.write(temp_bin, img.extensions)
+    extensions = NIfTI.read_extensions(open(temp_bin), 68)
+    fd = open(temp_bin, "r")
+    chunk = read(fd, Int32)
+    sys_order_size = read(fd, Int32)
+    sys_order_ecode = read(fd, Int32)
+    close(fd)
+    @test (chunk == 1 || chunk == bswap(Int32(1)))
+    @test sys_order_size == 32
+    @test extensions[1].ecode == sys_order_ecode
+
+    NIfTI.write(temp_bin, img.extensions, swapbyte=true, skip_extension_flag=true)
+
+    fd = open(temp_bin, "r")
+    reverse_order_size = read(fd, Int32)
+    reverse_order_ecode = read(fd, Int32)
+    close(fd)
+    extensions = NIfTI.read_extensions(open(temp_bin), 64, swapbyte=true, skip_extension_flag=true)
+    @test extensions[1].ecode == sys_order_ecode
+
+    @test reverse_order_size == bswap(Int32(sys_order_size))
+    @test reverse_order_ecode == bswap(Int32(sys_order_ecode))
+end
+
+
